@@ -1,0 +1,375 @@
+---
+title: "DAV Group Project - FIFA"
+author: "Gaur, Vikrant"
+date: "April 15, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#Loading Library
+library(readr)
+library(ggplot2)
+library(gridExtra)
+library(Amelia)
+library(beanplot)
+library(tidyverse)
+library(caret)
+library(leaps)
+library(MASS)
+library("PerformanceAnalytics")
+library(randomForest)
+library(gbm)
+library(faraway)
+library(Metrics)
+```
+
+
+# Part 1: Predicting the value of a player based on players playing attributes.
+## Exploratory Data Analyis
+
+```{r message=FALSE, warning=FALSE}
+colnames(FIFA19_Dataset)
+head(FIFA19_Dataset)
+```
+
+```{r message=FALSE, warning=FALSE}
+summary(FIFA19_Dataset)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#Removing columns which are not releavnt for the purpose of our analysis.
+
+#Removing postion columns
+FIFA19_Cleaning1 <- FIFA19_Dataset[-c(48:75)]
+
+#removing GK features, 
+FIFA19_Cleaning2 <-  FIFA19_Cleaning1[-c(25:29)]
+
+#removing other unwanted columns
+FIFA19_Cleaning3 <-  FIFA19_Cleaning2[-c(4,6,10)]
+colnames(FIFA19_Cleaning3)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Converting columns to numeric from character
+FIFA19_Cleaning3$Overall <- as.numeric(as.character(FIFA19_Cleaning3$Overall))
+FIFA19_Cleaning3$Potential <- as.numeric(as.character(FIFA19_Cleaning3$Potential))
+FIFA19_Cleaning3$Special <- as.numeric(as.character(FIFA19_Cleaning3$Special))
+FIFA19_Cleaning3$Acceleration <- as.numeric(as.character(FIFA19_Cleaning3$Acceleration))
+
+FIFA19_Cleaning3$Aggression <- as.numeric(as.character(FIFA19_Cleaning3$Aggression))
+FIFA19_Cleaning3$Agility <- as.numeric(as.character(FIFA19_Cleaning3$Agility))
+FIFA19_Cleaning3$Balance <- as.numeric(as.character(FIFA19_Cleaning3$Balance))
+FIFA19_Cleaning3$"Ball control" <- as.numeric(as.character(FIFA19_Cleaning3$"Ball control"))
+
+FIFA19_Cleaning3$Composure <- as.numeric(as.character(FIFA19_Cleaning3$Composure))
+FIFA19_Cleaning3$Crossing <- as.numeric(as.character(FIFA19_Cleaning3$Crossing))
+FIFA19_Cleaning3$Curve <- as.numeric(as.character(FIFA19_Cleaning3$Curve))
+FIFA19_Cleaning3$Dribbling <- as.numeric(as.character(FIFA19_Cleaning3$Dribbling))
+
+FIFA19_Cleaning3$Finishing <- as.numeric(as.character(FIFA19_Cleaning3$Finishing))
+FIFA19_Cleaning3$"Free kick accuracy" <- as.numeric(as.character(FIFA19_Cleaning3$"Free kick accuracy"))
+FIFA19_Cleaning3$"Heading accuracy" <- as.numeric(as.character(FIFA19_Cleaning3$"Heading accuracy"))
+FIFA19_Cleaning3$Interceptions <- as.numeric(as.character(FIFA19_Cleaning3$Interceptions))
+
+FIFA19_Cleaning3$Jumping <- as.numeric(as.character(FIFA19_Cleaning3$Jumping))
+FIFA19_Cleaning3$"Long passing" <- as.numeric(as.character(FIFA19_Cleaning3$"Long passing"))
+FIFA19_Cleaning3$"Long shots" <- as.numeric(as.character(FIFA19_Cleaning3$"Long shots"))
+FIFA19_Cleaning3$"Marking" <- as.numeric(as.character(FIFA19_Cleaning3$"Marking"))
+
+FIFA19_Cleaning3$"Penalties" <- as.numeric(as.character(FIFA19_Cleaning3$"Penalties"))
+FIFA19_Cleaning3$"Positioning" <- as.numeric(as.character(FIFA19_Cleaning3$"Positioning"))
+FIFA19_Cleaning3$Reactions <- as.numeric(as.character(FIFA19_Cleaning3$Reactions))
+FIFA19_Cleaning3$"Short passing" <- as.numeric(as.character(FIFA19_Cleaning3$"Short passing"))
+
+FIFA19_Cleaning3$"Shot power" <- as.numeric(as.character(FIFA19_Cleaning3$"Shot power"))
+FIFA19_Cleaning3$"Sliding tackle" <- as.numeric(as.character(FIFA19_Cleaning3$"Sliding tackle"))
+FIFA19_Cleaning3$"Sprint speed" <- as.numeric(as.character(FIFA19_Cleaning3$"Sprint speed"))
+FIFA19_Cleaning3$Stamina <- as.numeric(as.character(FIFA19_Cleaning3$Stamina))
+
+FIFA19_Cleaning3$"Standing tackle" <- as.numeric(as.character(FIFA19_Cleaning3$"Standing tackle"))
+FIFA19_Cleaning3$"Strength" <- as.numeric(as.character(FIFA19_Cleaning3$"Strength"))
+FIFA19_Cleaning3$"Vision" <- as.numeric(as.character(FIFA19_Cleaning3$"Vision"))
+FIFA19_Cleaning3$"Volleys" <- as.numeric(as.character(FIFA19_Cleaning3$"Volleys"))
+
+head(FIFA19_Cleaning3)
+```
+
+```{r message=FALSE, warning=FALSE}
+#fixing the the wage and Value column
+FIFA19_Cleaning4 <- FIFA19_Cleaning3
+
+#Value
+FIFA19_Cleaning4$Value = gsub("[\\???,]", "", FIFA19_Cleaning4$Value)
+
+FIFA19_Cleaning4$Value <- ifelse(grepl("M", FIFA19_Cleaning4$Value),as.numeric(as.character(gsub("M", "", FIFA19_Cleaning4$Value)))*1000000, ifelse(grepl("K", FIFA19_Cleaning4$Value),as.numeric(as.character(gsub("K", "", FIFA19_Cleaning4$Value)))*1000, FIFA19_Cleaning4$Value))
+
+FIFA19_Cleaning4$Value <-  as.numeric(as.character(FIFA19_Cleaning4$Value))
+
+#Wage
+FIFA19_Cleaning4$Wage = gsub("[\\???,]", "", FIFA19_Cleaning4$Wage)
+
+FIFA19_Cleaning4$Wage <- ifelse(grepl("M", FIFA19_Cleaning4$Wage),as.numeric(as.character(gsub("M", "", FIFA19_Cleaning4$Wage)))*1000000, ifelse(grepl("K", FIFA19_Cleaning4$Wage),as.numeric(as.character(gsub("K", "", FIFA19_Cleaning4$Wage)))*1000, FIFA19_Cleaning4$Wage))
+
+FIFA19_Cleaning4$Wage <-  as.numeric(as.character(FIFA19_Cleaning4$Wage))
+
+summary(FIFA19_Cleaning4)
+```
+
+```{r message=FALSE, warning=FALSE}
+missmap(FIFA19_Cleaning4)
+```
+
+```{r message=FALSE, warning=FALSE}
+FIFA19_Cleaning5 <- na.omit(FIFA19_Cleaning4)
+summary(FIFA19_Cleaning5)
+```
+
+```{r message=FALSE, warning=FALSE}
+boxplot(FIFA19_Cleaning5[11:39], horizontal=TRUE, main="Players playing attribute")
+#there are a few outliers in the dataset. We need to think about what 
+
+# Bean plot
+beanplot(FIFA19_Cleaning5[11:39])
+
+# Histogram
+hist(FIFA19_Cleaning5$Overall)
+hist(log(FIFA19_Cleaning5$Wage)) #need to check if log is the most appropritate function here
+hist(log(FIFA19_Cleaning5$Value)) #need to check if log is the most appropritate function here
+hist(FIFA19_Cleaning5$Age)
+```
+
+```{r message=FALSE, warning=FALSE}
+#Correaltion between variables
+
+data1 <- FIFA19_Cleaning5[, c(11:39)]
+chart.Correlation(data1, histogram=TRUE, pch=19)
+```
+
+#Problem A
+```{r message=FALSE, warning=FALSE}
+FIFA19_Cleaning6= FIFA19_Cleaning5[FIFA19_Cleaning5$Value > 0,]
+FIFA19_Cleaning7 <- FIFA19_Cleaning6[,-c(1,2,3,4,7)]
+```
+
+
+```{r}
+FIFA19.full <- lm(Value ~.-Wage, data = FIFA19_Cleaning7)
+halfnorm(lm.influence(FIFA19.full)$hat)
+```
+
+```{r}
+
+FIFA19_Cleaning8 = FIFA19_Cleaning7[-c(1,2,3,11966,562,4919,8523,11807),]
+
+# Splitting the data into training-testing data for better prediction:
+set.seed(1)
+
+FIFA19_Train <- sample(nrow(FIFA19_Cleaning8),as.integer(nrow(FIFA19_Cleaning8)*0.75))
+
+#Train Set
+train.FIFA19 = FIFA19_Cleaning8[FIFA19_Train,]
+
+#Test Set
+test.FIFA19 = FIFA19_Cleaning8[-FIFA19_Train,]
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#linear regression
+
+
+# Fit the full model 
+train.FIFA19.full.model <- lm(Value ~.-Wage, data = train.FIFA19)
+summary(train.FIFA19.full.model)$adj.r.square
+
+p <- predict(train.FIFA19.full.model,test.FIFA19)
+
+```
+
+```{r}
+plot(train.FIFA19.full.model)
+```
+
+
+```{r}
+# Stepwise regression model
+train.FIFA19.step.model <- stepAIC(train.FIFA19.full.model, direction = "both", 
+                      trace = FALSE)
+summary(train.FIFA19.step.model)
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#Stepwise Regression to get approproate fields
+train.FIFA19.Selected.features <- lm(Value ~ Potential + Acceleration + Balance + `Ball control` + Finishing + `Free kick accuracy` + Interceptions + `Long passing`  + Marking + Penalties + Reactions + `Short passing` + `Sprint speed` + Stamina + `Standing tackle` + Vision + Volleys, data = train.FIFA19)
+summary(train.FIFA19.Selected.features)$adj.r.square
+
+```
+
+```{r}
+plot(train.FIFA19.Selected.features)
+```
+
+```{r}
+#Stepwise Regression to get approproate fields
+train.FIFA19.Selected.features <- lm(log(Value) ~ Overall + Potential + Acceleration + Balance + `Ball control` + Finishing + `Free kick accuracy` + Interceptions + `Long passing`  + Marking + Penalties + Reactions + `Short passing` + `Sprint speed` + Stamina + `Standing tackle` + Vision + Volleys, data = train.FIFA19)
+summary(train.FIFA19.Selected.features)$adj.r.square
+
+```
+
+```{r}
+plot(train.FIFA19.Selected.features)
+```
+
+```{r}
+FIFA19_RF=FIFA19_Cleaning6[,c(6,8,11,14,15,20,21,23,25,27,28,30,31,34,35,36,38,39)]
+FIFA19_RF = FIFA19_RF[-c(1,2,3,11966,562,4919,8523,11807),]
+
+
+colnames(FIFA19_RF)[colnames(FIFA19_RF)=="Ball control"] <- "Ball_control"
+colnames(FIFA19_RF)[colnames(FIFA19_RF)=="Free kick accuracy"] <- "Free_kick_accuracy"
+colnames(FIFA19_RF)[colnames(FIFA19_RF)=="Long passing"] <- "Long_passing"
+colnames(FIFA19_RF)[colnames(FIFA19_RF)=="Short passing"] <- "Short_passing"
+colnames(FIFA19_RF)[colnames(FIFA19_RF)=="Sprint speed"] <- "Sprint_speed"
+colnames(FIFA19_RF)[colnames(FIFA19_RF)=="Standing tackle"] <- "Standing_tackle"
+
+FIFA19_Train_RF <- sample(nrow(FIFA19_RF),as.integer(nrow(FIFA19_RF)*0.75))
+
+#Train Set
+train.FIFA19_RF = FIFA19_RF[FIFA19_Train_RF,]
+
+#Test Set
+test.FIFA19_RF = FIFA19_RF[-FIFA19_Train_RF,]
+```
+
+```{r}
+set.seed(1)
+bag.fifa=randomForest(Value ~., data = FIFA19_RF,subset=FIFA19_Train_RF, mtry=5,importance=TRUE)
+bag.fifa
+```
+```{r}
+yhat.bag = predict(bag.fifa,newdata=test.FIFA19_RF)
+plot(yhat.bag, test.FIFA19_RF$Value)
+abline(0,1)
+#which.max(FIFA19_RF$Value)
+#head(FIFA19_RF)
+```
+
+```{r}
+mean((yhat.bag-log(test.FIFA19_RF$Value)^2))
+```
+
+```{r}
+importance(bag.fifa)
+```
+
+```{r}
+varImpPlot(bag.fifa)
+```
+
+```{r}
+set.seed(1)
+boost.fifa=gbm(Value~.,data=train.FIFA19_RF,distribution="gaussian",n.trees=1000,interaction.depth=4)
+summary(boost.fifa)
+```
+
+```{r}
+par(mfrow=c(1,3))
+plot(boost.fifa,i="Potential")
+plot(boost.fifa,i="Reactions")
+plot(boost.fifa,i="Ball_control")
+```
+
+```{r}
+yhat.boost=predict(boost.fifa,newdata=test.FIFA19_RF,n.trees=1000)
+mean((yhat.boost-log(test.FIFA19_RF$Value)^2))
+#nrow(test.FIFA19_RF)
+
+```
+
+#Unsupervised
+
+```{r}
+#creating a dataframe for Unsupervised learning
+FIFA19_Data_UL  <- FIFA19_Cleaning6[c(1,11:39)]
+
+scaled_FIFA19 <- scale(FIFA19_Data_UL)
+```
+
+```{r}
+#Elbow Method for finding the optimal number of clusters
+#set.seed(1)
+# Compute and plot wss for k = 2 to k = 15.
+k.max <- 15
+wss <- sapply(1:k.max, 
+              function(k){kmeans(scaled_FIFA19, k, nstart=50,iter.max = 15 )$tot.withinss})
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+```
+
+We will take four clusters as they are better able to explain our data and make clear cluster.
+
+
+```{r}
+FIFA19_kmeans=FIFA19_Cleaning6[c(1,6,8,11:39)]
+#colnames(FIFA19_kmeans)
+#colnames(FIFA19_Cleaning6)
+
+fit=kmeans(FIFA19_kmeans, centers = 4, nstart=25)
+
+df_test_kmeans <- data.frame(FIFA19_kmeans,fit$cluster)
+df_test_kmeans$fit.cluster <- as.factor(df_test_kmeans$fit.cluster)
+summary(df_test_kmeans$fit.cluster)
+str(df_test_kmeans$fit.cluster)
+
+```
+
+```{r}
+df_Kmeans_4=df_test_kmeans[df_test_kmeans[,"fit.cluster"]==4,]
+df_Kmeans_3=df_test_kmeans[df_test_kmeans[,"fit.cluster"]==3,]
+df_Kmeans_2=df_test_kmeans[df_test_kmeans[,"fit.cluster"]==2,]
+df_Kmeans_1=df_test_kmeans[df_test_kmeans[,"fit.cluster"]==1,]
+```
+
+```{r}
+p <- ggplot(df_test_kmeans) + geom_point(aes(scale(Potential),scale(Value),color=df_test_kmeans$fit.cluster)) +theme_bw()+ scale_colour_manual(values=c("red","green","blue","orange"))+ theme(legend.background = element_rect(fill="lightblue",size=0.5, linetype="solid", colour ="darkblue"),legend.position = c(0.3, 0.99), legend.justification = c("right", "top")) + scale_color_manual(labels = c("Cluster 1 - Best", "Cluster 2 - Above Average", "Cluster 4 - Average" , "Cluster 3 - Below Average"), values = c("red", "green","orange","blue"))+guides(color=guide_legend("Clusters"))
+p + annotate("text", x = 3.4, y = 22.5, label = "Neymar", size=3) + annotate("text", x = 3.3, y = 19.9, label = "L.Messi", size=3) + annotate("text", x = 3, y = 18, label = "L. Suárez", size=3) + annotate("text", x = 3.8, y = 16.5, label = "Ronaldo", size=3)
+```
+
+```{r}
+fit1=kmeans(scale(FIFA19_kmeans), centers = 4, nstart=25)
+
+df_test_kmeans$fit.cluster = as.numeric(as.factor(df_test_kmeans$fit.cluster))
+
+
+library(factoextra)
+fviz_cluster(fit1, data = df_test_kmeans, geom="point",
+             palette = "jco",
+             ggtheme = theme_minimal(),
+             main = "Partitioning Clustering Plot"
+             )
+```
+
+
+```{r}
+df_Kmeans_1_2=subset(df_test_kmeans, (fit.cluster==2) | (fit.cluster ==1))
+df_Kmeans_1_2$fit.cluster <- as.factor(df_Kmeans_1_2$fit.cluster)
+
+```
+
+```{r}
+q <- ggplot(df_Kmeans_1_2) + geom_point(aes(scale(Potential),scale(Value),color=df_Kmeans_1_2$fit.cluster)) +theme_bw()+ scale_colour_manual(values=c("red","green"))+ theme(legend.background = element_rect(fill="lightblue",size=0.5, linetype="solid", colour ="darkblue"),legend.position = c(0.3, 0.99), legend.justification = c("right", "top")) + scale_color_manual(labels = c("Cluster 1 - Best", "Cluster 2 - Above Average"), values = c("red", "green"))+guides(color=guide_legend("Clusters"))
+q + annotate("text", x = 2.65, y = 6, label = "Neymar", size=3) + annotate("text", x = 2.3, y = 4.9, label = "L.Messi", size=3) + annotate("text", x = 2.2, y = 4.2, label = "L. Suárez", size=3) + annotate("text", x = 2.8, y = 4, label = "Ronaldo", size=3) +annotate("text", x = -1.8, y = -0.5, label = "V. Germain", size=3) +annotate("text", x = -1.8, y = -0.5, label = "V. Germain", size=3) +annotate("text", x = 2.8, y = 1.1, label = "K. Mbappé", size=3) +annotate("text", x = 2.75, y = 0.2, label = "G. Donnarumma", size=3)
+
+```
